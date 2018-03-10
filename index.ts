@@ -5,41 +5,6 @@ import * as OrientDB from 'orientjs';
 
 import { Node } from 'ancient-mixins/lib/node';
 
-const OperationStatus = require('orientjs/lib/transport/binary/operation-status');
-const Connection = require('orientjs/lib/transport/binary/connection.js');
-
-Connection.prototype.handleSocketData = function (data) {
-  var buffer, result, offset, processed, lastOp;
-  if (this.remaining) {
-
-
-    buffer = new Buffer(this.remaining.length + data.length);
-    this.remaining.copy(buffer);
-    data.copy(buffer, this.remaining.length);
-  }
-  else {
-
-    buffer = data;
-  }
-
-  processed = this.process(buffer);
-  offset = processed[0];
-  lastOp = processed[1];
-  if (buffer.length - offset === 0) {
-    this.remaining = null;
-  }
-  else if (buffer.length && !offset) {
-    this.remaining = null;
-  }
-  else {
-    this.remaining = buffer.slice(offset);
-    // TODO refactor. In case of pending buffers but not Reading the precess should continue on the remaining Buffer
-    if (lastOp != OperationStatus.READING) {
-      this.handleSocketData(new Buffer(0));
-    }
-  }
-};
-
 import { Peer } from 'ancient-peer/lib/peer';
 
 var server = OrientDB({
@@ -57,7 +22,9 @@ var db = server.use({
 });
 
 class Subscription extends Node {
-  generate(className, where) {
+  constructor(className, where) {
+    super();
+
     this.className = className;
     this.where = where;
     this.rids = [];
@@ -107,8 +74,6 @@ class Subscription extends Node {
   }
 
   resubscribe() {
-    console.log('resubscribe', this.rids);
-
     if (this.outer) {
       this.outer.removeListener('live-update', this['outer-update']);
     }
@@ -139,9 +104,7 @@ class AppPeer extends Peer {
         gotQuery: (channelId, { cursorId, query, queryId }) => {
           cursors.push({ cursorId, channelId });
           
-          const Sub = new Subscription();
-          Sub
-          .generate(query.className, query.where)
+          const Sub = new Subscription(query.className, query.where)
           .on('added', ({ rid }) => {
             db.query(`select from ${query.className} where @rid=${rid}`)
             .then((data) => {
@@ -190,8 +153,8 @@ class AppPeer extends Peer {
           _.remove(cursors, (c: any) => c.channelId == channelId);
         },
       }
-		})());
-	}
+    })());
+  }
 }
 
 const peer = new AppPeer();
