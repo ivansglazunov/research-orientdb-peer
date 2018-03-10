@@ -13,7 +13,7 @@ exports.__esModule = true;
 var manager_1 = require("ancient-mixins/lib/manager");
 var channel_1 = require("./channel");
 function mixin(superClass) {
-    return /** @class */ (function (_super) {
+    return (function (_super) {
         __extends(ChannelsManager, _super);
         function ChannelsManager() {
             var _this = _super !== null && _super.apply(this, arguments) || this;
@@ -27,7 +27,7 @@ exports["default"] = mixin;
 exports.mixin = mixin;
 var MixedChannelsManager = mixin(manager_1.Manager);
 exports.MixedChannelsManager = MixedChannelsManager;
-var ChannelsManager = /** @class */ (function (_super) {
+var ChannelsManager = (function (_super) {
     __extends(ChannelsManager, _super);
     function ChannelsManager() {
         return _super !== null && _super.apply(this, arguments) || this;

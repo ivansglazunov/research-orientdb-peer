@@ -13,7 +13,7 @@ exports.__esModule = true;
 var uuid_1 = require("uuid");
 var events_1 = require("./events");
 function mixin(superClass) {
-    return /** @class */ (function (_super) {
+    return (function (_super) {
         __extends(Node, _super);
         function Node() {
             var args = [];
@@ -41,7 +41,7 @@ exports["default"] = mixin;
 exports.mixin = mixin;
 var MixedNode = mixin(events_1.Events);
 exports.MixedNode = MixedNode;
-var Node = /** @class */ (function (_super) {
+var Node = (function (_super) {
     __extends(Node, _super);
     function Node() {
         return _super !== null && _super.apply(this, arguments) || this;

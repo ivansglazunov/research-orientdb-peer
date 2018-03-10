@@ -12,7 +12,7 @@ var __extends = (this && this.__extends) || (function () {
 exports.__esModule = true;
 var EventEmitter = require("events");
 function mixin(superClass) {
-    return /** @class */ (function (_super) {
+    return (function (_super) {
         __extends(Events, _super);
         function Events() {
             var _this = _super !== null && _super.apply(this, arguments) || this;
@@ -41,13 +41,13 @@ function mixin(superClass) {
 }
 exports["default"] = mixin;
 exports.mixin = mixin;
-var MixedEvents = mixin(/** @class */ (function () {
+var MixedEvents = mixin((function () {
     function class_1() {
     }
     return class_1;
 }()));
 exports.MixedEvents = MixedEvents;
-var Events = /** @class */ (function (_super) {
+var Events = (function (_super) {
     __extends(Events, _super);
     function Events() {
         return _super !== null && _super.apply(this, arguments) || this;

@@ -16,7 +16,7 @@ var events_1 = require("../lib/events");
 function default_1() {
     describe('Events:', function () {
         it('on() / once() / off() / emit()', function () {
-            var TestEvents = /** @class */ (function (_super) {
+            var TestEvents = (function (_super) {
                 __extends(TestEvents, _super);
                 function TestEvents() {
                     return _super !== null && _super.apply(this, arguments) || this;

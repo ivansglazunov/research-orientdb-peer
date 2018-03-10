@@ -13,7 +13,7 @@ exports.__esModule = true;
 var _ = require("lodash");
 var node_1 = require("./node");
 function mixin(superClass) {
-    return /** @class */ (function (_super) {
+    return (function (_super) {
         __extends(Manager, _super);
         function Manager() {
             var _this = _super !== null && _super.apply(this, arguments) || this;
@@ -62,7 +62,7 @@ exports["default"] = mixin;
 exports.mixin = mixin;
 var MixedManager = mixin(node_1.Node);
 exports.MixedManager = MixedManager;
-var Manager = /** @class */ (function (_super) {
+var Manager = (function (_super) {
     __extends(Manager, _super);
     function Manager() {
         return _super !== null && _super.apply(this, arguments) || this;

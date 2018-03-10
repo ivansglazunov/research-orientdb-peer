@@ -19,7 +19,7 @@ var PackageType;
 })(PackageType || (PackageType = {}));
 exports.PackageType = PackageType;
 function mixin(superClass) {
-    return /** @class */ (function (_super) {
+    return (function (_super) {
         __extends(Channel, _super);
         function Channel() {
             var _this = _super !== null && _super.apply(this, arguments) || this;
@@ -106,7 +106,7 @@ exports["default"] = mixin;
 exports.mixin = mixin;
 var MixedChannel = mixin(node_1.Node);
 exports.MixedChannel = MixedChannel;
-var Channel = /** @class */ (function (_super) {
+var Channel = (function (_super) {
     __extends(Channel, _super);
     function Channel() {
         return _super !== null && _super.apply(this, arguments) || this;
