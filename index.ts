@@ -169,7 +169,7 @@ const peer = new AppPeer();
 
 const channelId = peer.connect(peer);
 
-const cursor = peer.exec(channelId, null, { className: 'Test', where: 'value > 7' });
+const cursor = peer.exec(channelId, null, { from: 'Test', where: 'value > 7' });
 cursor.on('changed', () => {
   console.log(cursor.data);
 })
