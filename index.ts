@@ -1,10 +1,8 @@
-import gql from 'graphql-tag';
-import graphql from 'graphql-anywhere';
 import * as _ from 'lodash';
 import * as OrientDB from 'orientjs';
 
+import { Asket, IQueryStep } from 'ancient-asket/lib/asket';
 import { Node } from 'ancient-mixins/lib/node';
-
 import { Peer } from 'ancient-peer/lib/peer';
 
 var server = OrientDB({
@@ -82,15 +80,7 @@ class Subscription extends Node {
   }
 
   resubscribe() {
-    if (this.outer) {
-      this.outer.removeListener('live-update', this['outer-update']);
-    }
-
-    if (this.inner) {
-      this.inner.removeListener('live-insert', this['inner-insert']);
-      this.inner.removeListener('live-update', this['inner-update']);
-      this.inner.removeListener('live-delete', this['inner-delete']);
-    }
+    this.unsubscribe();
 
     this.outer = db.liveQuery(`live select from ${this.from} where @rid in [${this.rids.join(',')}] and not (${this.where})`)
     .on('live-update', this['outer-update'])
@@ -102,56 +92,133 @@ class Subscription extends Node {
 
     return this;
   }
+
+  unsubscribe() {
+    if (this.outer) {
+      this.outer.removeListener('live-update', this['outer-update']);
+    }
+
+    if (this.inner) {
+      this.inner.removeListener('live-insert', this['inner-insert']);
+      this.inner.removeListener('live-update', this['inner-update']);
+      this.inner.removeListener('live-delete', this['inner-delete']);
+    }
+  }
 }
+
+function sync(
+  channelId, cursorId, query, path,
+  schema,
+  callback,
+) {
+  const Sub = new Subscription(query.from, query.where)
+  .on('added', ({ rid }) => {
+    db.query(`select from ${query.from} where @rid=${rid}`)
+    .then(data => crop(schema, 'record', data)).then(({ data }) => {
+      peer.sendBundles(channelId, {
+        type: 'splice', path: path, cursorId,
+        start: Sub.rids.length-1, deleteCount: 0, values: data,
+      });
+    });
+  })
+  .on('changed', ({ rid }) => {
+    db.query(`select from ${query.from} where @rid=${rid}`)
+    .then(data => crop(schema, 'record', data)).then(({ data }) => {
+      peer.sendBundles(channelId, {
+        type: 'set', path: [...path, { '@rid': rid }], cursorId,
+        value: data[0],
+      });
+    });
+  })
+  .on('removed', ({ rid }) => {
+    peer.sendBundles(channelId, {
+      type: 'remove', path: path, cursorId,
+      selector: { '@rid': rid },
+    });
+  })
+  .select((data) => {
+    crop(schema, 'records', data).then(({ data }) => {
+      peer.sendBundles(channelId, {
+        type: 'set', path: path, cursorId,
+        value: data,
+      });
+      callback(data);
+    });
+  });
+  return Sub;
+}
+
+const Resolver = (getData) => (schema, data, env, steps: IQueryStep[]) => {
+  return new Promise(((resolve) => {
+    if (env === 'root') {
+      if (!steps.length) {
+        resolve({ env: 'root', data: {} });
+      } else if (schema.name === 'query') {
+        getData(schema, data, env, steps).then(data => resolve({ env: 'records', data }));
+      } else {
+        resolve({ dontExec: true, data: undefined });
+      }
+    } else if (env === 'records') {
+      resolve({ env: 'record', data });
+    } else {
+      resolve({ dontExec: true, data });
+    }
+  }));
+}
+
+function crop(schema, env, data) {
+  return new Asket(
+    { schema }, 
+    Resolver(() => new Promise(r => r([]))),
+    env,
+    data,
+  ).exec();
+}
+
+const api = (() => {
+  const cursors = [];
+  return {
+    gotQuery: (channelId, { cursorId, query, queryId }) => {
+      const cursor = { cursorId, channelId, synced: [] };
+      cursors.push(cursor);
+
+      new Asket(
+        query, 
+        Resolver((schema, data, env, steps: IQueryStep[]) => {
+          return new Promise((resolve) => {
+            cursor.synced.push(sync(
+              channelId, cursorId,
+              schema.options, [_.map(steps, s => s.key).join('.')], schema,
+              (data) => {
+                resolve(data);
+              },
+            ));
+          });
+        }),
+        'root',
+        {},
+      ).exec();
+    },
+    cursorDestroyed: (channelId, cursorId) => {
+      _.remove(cursors, (c: any) => {
+        const result = c.cursorId == cursorId && c.channelId == channelId;
+        if (result) _.each(c.synced, s => s.unsubscribe());
+        return result;
+      });
+    },
+    channelDestroyed: (channelId) => {
+      _.remove(cursors, (c: any) => {
+        const result = c.channelId == channelId;
+        if (result) _.each(c.synced, s => s.unsubscribe());
+        return result;
+      });
+    },
+  }
+})();
 
 class AppPeer extends Peer {
 	getApiCallbacks(apiQuery, callback) {
-		callback((() => {
-      const cursors = [];
-      return {
-        gotQuery: (channelId, { cursorId, query, queryId }) => {
-          cursors.push({ cursorId, channelId });
-          
-          const Sub = new Subscription(query.from, query.where)
-          .on('added', ({ rid }) => {
-            db.query(`select from ${query.from} where @rid=${rid}`)
-            .then((data) => {
-              this.sendBundles(channelId, {
-                type: 'splice', path: '', cursorId,
-                start: Sub.rids.length-1, deleteCount: 0, values: data,
-              });
-            });
-          })
-          .on('changed', ({ rid }) => {
-            db.query(`select from ${query.from} where @rid=${rid}`)
-            .then((data) => {
-              this.sendBundles(channelId, {
-                type: 'set', path: [{ '@rid': rid }], cursorId,
-                value: data[0],
-              });
-            });
-          })
-          .on('removed', ({ rid }) => {
-            this.sendBundles(channelId, {
-              type: 'remove', path: '', cursorId,
-              selector: { '@rid': rid },
-            });
-          })
-          .select((data) => {
-            this.sendBundles(channelId, {
-              type: 'set', path: '', cursorId,
-              value: data,
-            });
-          });
-        },
-        cursorDestroyed: (channelId, cursorId) => {
-          _.remove(cursors, (c: any) => c.cursorId == cursorId && c.channelId == channelId);
-        },
-        channelDestroyed: (channelId) => {
-          _.remove(cursors, (c: any) => c.channelId == channelId);
-        },
-      }
-    })());
+		callback(api);
   }
 }
 
@@ -159,7 +226,9 @@ const peer = new AppPeer();
 
 const channelId = peer.connect(peer);
 
-const cursor = peer.exec(channelId, null, { from: 'Test', where: 'value > 7' });
+const cursor = peer.exec(channelId, null, { schema: { fields: {
+  x: { name: 'query', options: { from: 'Test', where: 'value > 7' }, fields: { '@rid': true, value: true } },
+}}});
 cursor.on('changed', () => {
   console.log(cursor.data);
 })
