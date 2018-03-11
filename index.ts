@@ -117,12 +117,8 @@ class AppPeer extends Peer {
             db.query(`select from ${query.from} where @rid=${rid}`)
             .then((data) => {
               this.sendBundles(channelId, {
-                type: 'splice',
-                path: '',
-                start: Sub.rids.length-1,
-                deleteCount: 0,
-                values: data,
-                cursorId,
+                type: 'splice', path: '', cursorId,
+                start: Sub.rids.length-1, deleteCount: 0, values: data,
               });
             });
           })
@@ -130,27 +126,21 @@ class AppPeer extends Peer {
             db.query(`select from ${query.from} where @rid=${rid}`)
             .then((data) => {
               this.sendBundles(channelId, {
-                type: 'set',
-                path: [{ '@rid': rid }],
+                type: 'set', path: [{ '@rid': rid }], cursorId,
                 value: data[0],
-                cursorId,
               });
             });
           })
           .on('removed', ({ rid }) => {
             this.sendBundles(channelId, {
-              type: 'remove',
-              path: '',
+              type: 'remove', path: '', cursorId,
               selector: { '@rid': rid },
-              cursorId,
             });
           })
           .select((data) => {
             this.sendBundles(channelId, {
-              type: 'set',
-              path: '',
+              type: 'set', path: '', cursorId,
               value: data,
-              cursorId,
             });
           });
         },
