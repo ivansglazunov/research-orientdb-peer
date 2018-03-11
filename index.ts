@@ -22,23 +22,27 @@ var db = server.use({
 });
 
 class Subscription extends Node {
-  constructor(className, where) {
+  constructor(from, where) {
     super();
 
-    this.className = className;
+    this.from = from;
     this.where = where;
     this.rids = [];
 
     this['outer-update'] = (d) => {
       const rid = `#${d.cluster}:${d.position}`;
-      this.emit('removed', { rid });
+      db.query(`select from ${this.from} where @rid=${rid}`).then((data) => {
+        this.emit('removed', { rid, data });
+      });
       _.remove(this.rids, r => r == rid);
       this.resubscribe();
     };
 
     this['inner-insert'] = (d) => {
       const rid = `#${d.cluster}:${d.position}`;
-      this.emit('added', { rid });
+      db.query(`select from ${this.from} where @rid=${rid}`).then((data) => {
+        this.emit('added', { rid, data });
+      });
       this.rids.push(rid);
       this.resubscribe();
     };
@@ -46,11 +50,15 @@ class Subscription extends Node {
     this['inner-update'] = (d) => {
       const rid = `#${d.cluster}:${d.position}`;
       if (!_.includes(this.rids, rid)) {
-        this.emit('added', { rid });
+        db.query(`select from ${this.from} where @rid=${rid}`).then((data) => {
+          this.emit('added', { rid, data });
+        });
         this.rids.push(rid);
         this.resubscribe();
       } else {
-        this.emit('changed', { rid });
+        db.query(`select from ${this.from} where @rid=${rid}`).then((data) => {
+          this.emit('changed', { rid, data });
+        });
       }
     };
 
@@ -64,7 +72,7 @@ class Subscription extends Node {
   }
 
   select(callback?) {
-    db.query(`select from ${this.className} where ${this.where}`).then((data) => {
+    db.query(`select from ${this.from} where ${this.where}`).then((data) => {
       this.emit('selected', { subscription: this, data });
       this.rids = _.map(data, d => d['@rid'].toString());
       this.resubscribe();
@@ -84,10 +92,10 @@ class Subscription extends Node {
       this.inner.removeListener('live-delete', this['inner-delete']);
     }
 
-    this.outer = db.liveQuery(`live select from ${this.className} where @rid in [${this.rids.join(',')}] and not (${this.where})`)
+    this.outer = db.liveQuery(`live select from ${this.from} where @rid in [${this.rids.join(',')}] and not (${this.where})`)
     .on('live-update', this['outer-update'])
 
-    this.inner = db.liveQuery(`live select from ${this.className} where ${this.where}`)
+    this.inner = db.liveQuery(`live select from ${this.from} where ${this.where}`)
     .on('live-insert', this['inner-insert'])
     .on('live-update', this['inner-update'])
     .on('live-delete', this['inner-delete'])
@@ -104,9 +112,9 @@ class AppPeer extends Peer {
         gotQuery: (channelId, { cursorId, query, queryId }) => {
           cursors.push({ cursorId, channelId });
           
-          const Sub = new Subscription(query.className, query.where)
+          const Sub = new Subscription(query.from, query.where)
           .on('added', ({ rid }) => {
-            db.query(`select from ${query.className} where @rid=${rid}`)
+            db.query(`select from ${query.from} where @rid=${rid}`)
             .then((data) => {
               this.sendBundles(channelId, {
                 type: 'splice',
@@ -119,7 +127,7 @@ class AppPeer extends Peer {
             });
           })
           .on('changed', ({ rid }) => {
-            db.query(`select from ${query.className} where @rid=${rid}`)
+            db.query(`select from ${query.from} where @rid=${rid}`)
             .then((data) => {
               this.sendBundles(channelId, {
                 type: 'set',
@@ -163,5 +171,5 @@ const channelId = peer.connect(peer);
 
 const cursor = peer.exec(channelId, null, { className: 'Test', where: 'value > 7' });
 cursor.on('changed', () => {
-  console.log(cursor.data.map(d => d['@rid']));
+  console.log(cursor.data);
 })
